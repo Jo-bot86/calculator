@@ -11,10 +11,11 @@ import java.awt.Image;
 import java.awt.Insets;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.util.Observable;
+import java.util.Observer;
 import java.awt.Component;
 
 import javax.swing.BorderFactory;
-import javax.swing.Icon;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
 import javax.swing.JFrame;
@@ -24,14 +25,15 @@ import javax.swing.SwingConstants;
 
 import calculator.model.TaschenrechnerPresenter;
 
-public class TaschenrechnerGUI extends JFrame {
+@SuppressWarnings("deprecation")
+public class TaschenrechnerGUI extends JFrame implements Observer {
 
 	/**
 	 * 
 	 */
 	private static final long serialVersionUID = 1L;
 
-	private TaschenrechnerPresenter presenter = new TaschenrechnerPresenter();
+	private TaschenrechnerPresenter presenter;
 
 	private JPanel panel;
 
@@ -43,7 +45,9 @@ public class TaschenrechnerGUI extends JFrame {
 
 	private JPanel menuPanel;
 
-	public TaschenrechnerGUI() {
+	public TaschenrechnerGUI(TaschenrechnerPresenter presenter) {
+		this.presenter = presenter;
+		this.presenter.addObserver(this);
 		setSize(335, 538);
 		setTitle("Rechner");
 //		setResizable(false);
@@ -205,35 +209,15 @@ public class TaschenrechnerGUI extends JFrame {
 	private JTextField buildDisplay() {
 		JTextField display = new JTextField("0");
 		Font font = new Font("SansSerif", Font.BOLD, 50);
-		presenter.addPropertyChangeListener(event -> {
-			display.setHorizontalAlignment(SwingConstants.RIGHT);
-			if (presenter.getErrorMessage().isEmpty()) {
-				if (presenter.getValue().length() > 11)
-					display.setFont(new Font("SansSerif", Font.BOLD, 25));
-				else
-					display.setFont(new Font("SansSerif", Font.BOLD, 50));
-			} else {
-				display.setFont(new Font("SansSerif", Font.BOLD, 20));
-				display.setHorizontalAlignment(SwingConstants.CENTER);
-			}
-		});
+
 		display.setFont(font);
 		display.setHorizontalAlignment(SwingConstants.RIGHT);
 		display.setEditable(false);
 		display.setBorder(BorderFactory.createEmptyBorder(2, 2, 2, 5));
 		display.setBackground(panel.getBackground());
-		handlePropertyChange(display);
 		return display;
 	}
 
-	private void handlePropertyChange(JTextField display) {
-		presenter.addPropertyChangeListener(event -> {
-			if (presenter.isOperator()) {
-				presenter.setOperator(false);
-			}
-			display.setText(event.getNewValue().toString());
-		});
-	}
 
 	private void makeButton(String name, int gridx, int gridy, Color bgColor) {
 		JButton button = new JButton(name);
@@ -241,7 +225,6 @@ public class TaschenrechnerGUI extends JFrame {
 		button.setBorder(BorderFactory.createEmptyBorder());
 		c.gridx = gridx;
 		c.gridy = gridy;
-//		gridbag.setConstraints(button, c);
 		panel.add(button, c);
 	}
 
@@ -266,7 +249,8 @@ public class TaschenrechnerGUI extends JFrame {
 	private void handleHoverOnButton() {
 		Component[] allComponents = panel.getComponents();
 		for (Component c : allComponents) {
-			if (c instanceof JButton button) {
+			if (c instanceof JButton) {
+				JButton button = (JButton) c;
 				addHoverEffect(button);
 			}
 		}
@@ -276,186 +260,106 @@ public class TaschenrechnerGUI extends JFrame {
 		Component[] allComponents = panel.getComponents();
 		// select all buttons containing a number
 		for (Component c : allComponents) {
-			if (c instanceof JButton button && button.getText().matches("[0-9]")) {
+			if (c instanceof JButton && ((JButton) c).getText().matches("[0-9]")) {
+				JButton button = (JButton) c;
 				button.addActionListener(event -> {
 					if (presenter.getValue().length() < 15)
-						presenter.setValue(button.getText());
+						presenter.performConcatination(button.getText());
 				});
 			}
 		}
 
 		for (Component c : allComponents) {
-			if (c instanceof JButton button) {
+			if (c instanceof JButton) {
+				JButton button = (JButton) c;
 				button.addActionListener(event -> {
-					String numValue;
-					switch (button.getText()) {
-					case "÷":
-						performOperation("÷");
-						break;
-					case "×":
-						performOperation("×");
-						break;
-					case "−":
-						performOperation("−");
-						break;
-					case "+":
-						performOperation("+");
-						break;
-					case "x²":
-						performInstantOperation("x²");
-						break;
-					case "√":
-						performInstantOperation("√");
-						break;
-					case "1/x":
-						performInstantOperation("1/x");
-						break;
-					case "=":
-						switchLastOperator();
-						numValue = removeDecimal();
-						presenter.resetValue();
-						presenter.setValue(numValue);
-						presenter.resetValue();
-						break;
-					case "\u002C":
-						presenter.setValue(".");
-						break;
-					case "±":
-						negateValue();
-						break;
-					case "⌫":
-						String value = presenter.getValue();
-						presenter.resetValue();
-						if (value.length() <= 1) {
-							presenter.resetValue();
-							presenter.setErrorMessage("");
-							presenter.setNumValue(0);
-							presenter.setLastOperator("+");
-							presenter.setValue("0");
-							presenter.resetValue();
-						} else {
-							presenter.setValue(value.substring(0, value.length() - 1));
+					try {
+						switch (button.getText()) {
+						case "÷":
+							presenter.performOperation("÷");
+							break;
+						case "×":
+							presenter.performOperation("×");
+							break;
+						case "−":
+							presenter.performOperation("−");
+							break;
+						case "+":
+							presenter.performOperation("+");
+							break;
+						case "x²":
+							presenter.performInstantOperation("x²");
+							break;
+						case "√":
+							presenter.performInstantOperation("√");
+							break;
+						case "1/x":
+							presenter.performInstantOperation("1/x");
+							break;
+						case "=":
+							presenter.performEqualsOperation();
+							break;
+						case "\u002C":
+							presenter.performDotConcatination();
+							break;
+						case "±":
+							presenter.performNegateValue();
+							break;
+						case "⌫":
+							presenter.performBackSpace();
+							break;
+						case "C":
+							presenter.performClear();
+							enableButtons();
+							break;
+						case "CE":
+							presenter.performClearEntry();
+							enableButtons();
+							break;
 						}
-
-						break;
-					case "C":
-						presenter.resetValue();
-						presenter.setErrorMessage("");
-						presenter.setNumValue(0);
-						presenter.setLastOperator("+");
-						presenter.setValue("0");
-						presenter.resetValue();
-						break;
-					case "CE":
-						presenter.resetValue();
-						presenter.setErrorMessage("");
-						presenter.setValue("0");
-						presenter.resetValue();
-						break;
+					} catch (IllegalArgumentException e) {
+						disableButtons();
 					}
-
 				});
 			}
 		}
 	}
 
-	private void negateValue() {
-		String value;
-		if (presenter.getValue().startsWith("-")) {
-			value = presenter.getValue().substring(1);
+	private void enableButtons() {
+		Component[] allComponents = panel.getComponents();
+		for (Component c : allComponents) {
+			if (c instanceof JButton) {
+				((JButton) c).setEnabled(true);
+			}
+		}
+	}
+
+	private void disableButtons() {
+		Component[] allComponents = panel.getComponents();
+		for (Component c : allComponents) {
+			if (c instanceof JButton) {
+				JButton button = (JButton) c;
+				if (button.getText().equals("CE") || button.getText().equals("C") || button.getText().equals("⌫")) {
+					continue;
+				}
+				button.setEnabled(false);
+			}
+		}
+	}
+
+	@Override
+	public void update(Observable presenter, Object value) {
+		display.setHorizontalAlignment(SwingConstants.RIGHT);
+		if (((TaschenrechnerPresenter) presenter).getErrorMessage().isEmpty()) {
+			if (((TaschenrechnerPresenter) presenter).getValue().length() > 11)
+				display.setFont(new Font("SansSerif", Font.BOLD, 25));
+			else
+				display.setFont(new Font("SansSerif", Font.BOLD, 50));
 		} else {
-			value = "-".concat(presenter.getValue());
+			display.setFont(new Font("SansSerif", Font.BOLD, 20));
+			display.setHorizontalAlignment(SwingConstants.CENTER);
 		}
-		presenter.resetValue();
-		presenter.setValue(value);
-	}
-
-	private void performInstantOperation(String operation) {
-		String numValue;
-		try {
-			switch (operation) {
-			case "x²":
-				if (presenter.getNumValue() == 0) {
-					presenter.setNumValue(presenter
-							.square(presenter.getValue().equals("") ? 0 : Double.parseDouble(presenter.getValue())));
-				} else {
-					presenter.setNumValue(presenter.square(presenter.getNumValue()));
-
-				}
-				break;
-			case "√":
-				if (presenter.getNumValue() == 0) {
-					presenter.setNumValue(presenter
-							.sqrt(presenter.getValue().equals("") ? 0 : Double.parseDouble(presenter.getValue())));
-				} else {
-					presenter.setNumValue(presenter.sqrt(presenter.getNumValue()));
-
-				}
-				break;
-			case "1/x":
-				if (presenter.getNumValue() == 0) {
-					presenter.setNumValue(presenter
-							.hyperbel(presenter.getValue().equals("") ? 0 : Double.parseDouble(presenter.getValue())));
-				} else {
-					presenter.setNumValue(presenter.hyperbel(presenter.getNumValue()));
-
-				}
-			}
-		} catch (IllegalArgumentException e) {
-			presenter.setErrorMessage(e.getMessage());
-		}
-		presenter.setOperator(true);
-		presenter.setValue("");
-		presenter.setLastOperator(operation);
-		numValue = removeDecimal();
-		presenter.resetValue();
-		presenter.setValue(numValue);
-		presenter.resetValue();
-	}
-
-	private void performOperation(String operation) {
-		String numValue;
-		switchLastOperator();
-		presenter.setOperator(true);
-		presenter.setValue("");
-		presenter.setLastOperator(operation);
-		numValue = removeDecimal();
-		presenter.resetValue();
-		presenter.setValue(numValue);
-		presenter.resetValue();
-	}
-
-	private String removeDecimal() {
-		String numValue = Double.valueOf(presenter.getNumValue()).toString();
-		if (numValue.endsWith(".0")) {
-			numValue = numValue.replace(".0", "");
-		}
-		return numValue;
-	}
-
-	private void switchLastOperator() {
-		try {
-			switch (presenter.getLastOperator()) {
-			case "÷":
-				presenter.setNumValue(presenter.div(presenter.getNumValue(),
-						presenter.getValue().equals("") ? 1 : Double.parseDouble(presenter.getValue())));
-				break;
-			case "×":
-				presenter.setNumValue(presenter.mul(presenter.getNumValue(),
-						presenter.getValue().equals("") ? 1 : Double.parseDouble(presenter.getValue())));
-				break;
-			case "−":
-				presenter.setNumValue(presenter.sub(presenter.getNumValue(),
-						presenter.getValue().equals("") ? 0 : Double.parseDouble(presenter.getValue())));
-				break;
-			case "+":
-				presenter.setNumValue(presenter.add(presenter.getNumValue(),
-						presenter.getValue().equals("") ? 0 : Double.parseDouble(presenter.getValue())));
-				break;
-			}
-		} catch (IllegalArgumentException e) {
-			presenter.setErrorMessage(e.getMessage());
-		}
+		display.setText((String) value);
 	}
 
 }
